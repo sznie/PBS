@@ -21,7 +21,8 @@ struct Conflict
 {
 	int a1;
 	int a2;
-    explicit Conflict(int a1 = -1, int a2 = -1): a1(a1), a2(a2) { }
+    int timestep;
+    explicit Conflict(int a1 = -1, int a2 = -1, int timestep = -1): a1(a1), a2(a2), timestep(timestep) { }
 };
 
 std::ostream& operator<<(std::ostream& os, const Conflict& conflict);

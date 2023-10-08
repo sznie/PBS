@@ -59,9 +59,9 @@ int main(int argc, char** argv)
         pbs.saveResults(vm["output"].as<string>(), vm["agents"].as<string>());
     if (pbs.solution_found && vm.count("outputPaths"))
         pbs.savePaths(vm["outputPaths"].as<string>());
-    /*size_t pos = vm["output"].as<string>().rfind('.');      // position of the file extension
+    size_t pos = vm["output"].as<string>().rfind('.');      // position of the file extension
     string output_name = vm["output"].as<string>().substr(0, pos);     // get the name without extension
-    cbs.saveCT(output_name); // for debug*/
+    pbs.saveCT(output_name); // for debug
     pbs.clearSearchEngines();
 
 	return 0;
