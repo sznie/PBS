@@ -55,6 +55,7 @@ private:
 
     list<int> ordered_agents;
     vector<vector<bool>> priority_graph; // [i][j] = true indicates that i is lower than j
+	vector<vector<int>> priority_graph_times; // [i][j] and [j][i] is timestep for which conflict happens
 
     string getSolverName() const;
 
@@ -71,7 +72,7 @@ private:
 	vector<Path*> paths;
 	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
 
-    bool generateChild(int child_id, PBSNode* parent, int low, int high);
+    bool generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time);
 
 	bool hasConflicts(int a1, int a2) const;
     bool hasConflicts(int a1, const set<int>& agents) const;

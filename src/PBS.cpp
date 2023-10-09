@@ -59,9 +59,9 @@ bool PBS::solve(double _time_limit)
                !hasHigherPriority(curr->conflict->a2, curr->conflict->a1) );
         auto t1 = clock();
         vector<Path*> copy(paths);
-        generateChild(0, curr, curr->conflict->a1, curr->conflict->a2);
+        generateChild(0, curr, curr->conflict->a1, curr->conflict->a2, curr->conflict->timestep);
         paths = copy;
-        generateChild(1, curr, curr->conflict->a2, curr->conflict->a1);
+        generateChild(1, curr, curr->conflict->a2, curr->conflict->a1, curr->conflict->timestep);
         runtime_generate_child += (double)(clock() - t1) / CLOCKS_PER_SEC;
         pushNodes(curr->children[0], curr->children[1]);
         curr->clear();
@@ -69,20 +69,22 @@ bool PBS::solve(double _time_limit)
     return solution_found;
 }
 
-// somewhere in pbs keep track of timestep, 
-// keep track of timestep for every priority graph setting
-// recreate priority graph  priority graph every time step, remove priority graph constraint
 
-bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high)
+bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time)
 {
+    cout << "generateChild " << low << ", " << high << ", t" << conflict_time << endl;
     assert(child_id == 0 or child_id == 1);
     parent->children[child_id] = new PBSNode(*parent);
     auto node = parent->children[child_id];
     node->constraint.set(low, high);
-    // regenerate priority graph with tuples (bool, timestep)
+
     priority_graph[high][low] = false;
     priority_graph[low][high] = true;
-    if (screen > 2)
+    priority_graph_times[high][low] = conflict_time;
+    priority_graph_times[low][high] = conflict_time;
+
+    if (screen > 1)
+        cout << "in child";
         printPriorityGraph();
     topologicalSort(ordered_agents);
     if (screen > 2)
@@ -257,6 +259,7 @@ inline void PBS::update(PBSNode* node)
 {
     paths.assign(num_of_agents, nullptr);
     priority_graph.assign(num_of_agents, vector<bool>(num_of_agents, false));
+    priority_graph_times.assign(num_of_agents, vector<int>(num_of_agents, -1));
     for (auto curr = node; curr != nullptr; curr = curr->parent)
 	{
 		for (auto & path : curr->paths)
@@ -269,6 +272,8 @@ inline void PBS::update(PBSNode* node)
         if (curr->parent != nullptr) // non-root node
             priority_graph[curr->constraint.low][curr->constraint.high] = true;
 	}
+    cout << "update pbs";
+    printPriorityGraph();
     assert(getSumOfCosts() == node->cost);
 }
 
@@ -420,7 +425,7 @@ void PBS::printPriorityGraph() const
         for (int a2 = 0; a2 < num_of_agents; a2++)
         {
             if (priority_graph[a1][a2])
-                cout << a1 << "<" << a2 << ",";
+                cout << a1 << "<" << a2 << " at t=" << priority_graph_times[a1][a2] << ", ";
         }
     }
     cout << endl;
@@ -596,7 +601,7 @@ void PBS::printConflicts(const PBSNode &curr)
 {
 	for (const auto& conflict : curr.conflicts)
 	{
-		cout << *conflict << endl;
+		cout << "conflict: " << *conflict << endl;
 	}
 }
 
@@ -668,17 +673,13 @@ bool PBS::generateRoot()
         for (int a2 = a1 + 1; a2 < num_of_agents; a2++)
         {
             fillConflicts(a1, a2, *root);
-            // if(hasConflicts(a1, a2))
-            // {
-            //     root->conflicts.emplace_back(new Conflict(a1, a2));
-            // }
         }
     }
     runtime_detect_conflicts += (double)(clock() - t) / CLOCKS_PER_SEC;
     num_HL_generated++;
     root->time_generated = num_HL_generated;
     if (screen > 1)
-        cout << "Generate " << *root << endl;
+        cout << "Generate Root " << *root << endl;
 	pushNode(root);
 	dummy_start = root;
 	if (screen >= 2) // print start and goals
