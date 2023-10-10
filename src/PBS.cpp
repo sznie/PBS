@@ -82,6 +82,21 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     priority_graph[low][high] = true;
     priority_graph_times[high][low] = conflict_time;
     priority_graph_times[low][high] = conflict_time;
+    // contribution: update priority graph here based on conflict time
+    if (true) {
+        int window = 6; // timesteps
+        for (int a1 = 0; a1 < num_of_agents; a1++)
+        {
+            for (int a2 = 0; a2 < num_of_agents; a2++)
+            {
+                // remove the priority constraints made at timesteps earlier than window steps before
+                if (!(conflict_time - priority_graph_times[a1][a2] < window)) {
+                    priority_graph[a1][a2] = false;
+                    priority_graph[a2][a1] = false;
+                }
+            }
+        }
+    }
 
     if (screen > 1)
         cout << "in child";
