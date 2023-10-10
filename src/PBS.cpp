@@ -76,7 +76,7 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     assert(child_id == 0 or child_id == 1);
     parent->children[child_id] = new PBSNode(*parent);
     auto node = parent->children[child_id];
-    node->constraint.set(low, high);
+    node->constraint.set(low, high, conflict_time);
 
     priority_graph[high][low] = false;
     priority_graph[low][high] = true;
@@ -260,19 +260,23 @@ inline void PBS::update(PBSNode* node)
     paths.assign(num_of_agents, nullptr);
     priority_graph.assign(num_of_agents, vector<bool>(num_of_agents, false));
     priority_graph_times.assign(num_of_agents, vector<int>(num_of_agents, -1));
+
     for (auto curr = node; curr != nullptr; curr = curr->parent)
 	{
-		for (auto & path : curr->paths)
+        for (auto & path : curr->paths)
 		{
 			if (paths[path.first] == nullptr)
 			{
 				paths[path.first] = &(path.second);
 			}
 		}
-        if (curr->parent != nullptr) // non-root node
+        if (curr->parent != nullptr) {
+            // non-root node
             priority_graph[curr->constraint.low][curr->constraint.high] = true;
+            priority_graph_times[curr->constraint.low][curr->constraint.high] = curr->constraint.conflict_time;
+            priority_graph_times[curr->constraint.high][curr->constraint.low] = curr->constraint.conflict_time;
+        }
 	}
-    cout << "update pbs";
     printPriorityGraph();
     assert(getSumOfCosts() == node->cost);
 }
@@ -426,6 +430,8 @@ void PBS::printPriorityGraph() const
         {
             if (priority_graph[a1][a2])
                 cout << a1 << "<" << a2 << " at t=" << priority_graph_times[a1][a2] << ", ";
+            // else 
+            //     cout << a1 << ">" << a2 << " at t=" << priority_graph_times[a1][a2] << ", ";
         }
     }
     cout << endl;

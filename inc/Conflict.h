@@ -7,10 +7,12 @@ struct Constraint
 {
     int low = -1;
     int high = -1;
-    void set(int _low, int _high)
+    int conflict_time = -1;
+    void set(int _low, int _high, int _conflict_time)
     {
         low = _low;
         high = _high;
+        conflict_time = _conflict_time;
     }
 };
 

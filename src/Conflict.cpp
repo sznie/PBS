@@ -2,7 +2,7 @@
 
 std::ostream& operator<<(std::ostream& os, const Constraint& constraint)
 {
-	os << "<" << constraint.low << " is lower than " << constraint.high << ">";
+	os << "<" << constraint.low << " is lower than " << constraint.high << " from t=" << constraint.conflict_time << ">";
 	return os;
 }
 
