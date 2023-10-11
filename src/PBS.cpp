@@ -26,6 +26,7 @@ PBS::PBS(const Instance& instance, bool sipp, int screen) :
     {
         instance.printAgents();
     }
+    priority_window = 6;
 }
 
 
@@ -72,7 +73,6 @@ bool PBS::solve(double _time_limit)
 
 bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time)
 {
-    cout << "generateChild " << low << ", " << high << ", t" << conflict_time << endl;
     assert(child_id == 0 or child_id == 1);
     parent->children[child_id] = new PBSNode(*parent);
     auto node = parent->children[child_id];
@@ -82,15 +82,14 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     priority_graph[low][high] = true;
     priority_graph_times[high][low] = conflict_time;
     priority_graph_times[low][high] = conflict_time;
-    // contribution: update priority graph here based on conflict time
-    if (true) {
-        int window = 6; // timesteps
+    // contribution: update priority graph here based on conflict time, if priority_window <= 0, regular PBS
+    if (priority_window > 0) {
         for (int a1 = 0; a1 < num_of_agents; a1++)
         {
             for (int a2 = 0; a2 < num_of_agents; a2++)
             {
                 // remove the priority constraints made at timesteps earlier than window steps before
-                if (!(conflict_time - priority_graph_times[a1][a2] < window)) {
+                if (!(conflict_time - priority_graph_times[a1][a2] < priority_window)) {
                     priority_graph[a1][a2] = false;
                     priority_graph[a2][a1] = false;
                 }
@@ -99,7 +98,6 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     }
 
     if (screen > 1)
-        cout << "in child";
         printPriorityGraph();
     topologicalSort(ordered_agents);
     if (screen > 2)
@@ -292,7 +290,6 @@ inline void PBS::update(PBSNode* node)
             priority_graph_times[curr->constraint.high][curr->constraint.low] = curr->constraint.conflict_time;
         }
 	}
-    printPriorityGraph();
     assert(getSumOfCosts() == node->cost);
 }
 
@@ -512,7 +509,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
 	{
 		ofstream addHeads(fileName);
 		addHeads << "runtime,#high-level expanded,#high-level generated,#low-level expanded,#low-level generated," <<
-			"solution cost,root g value," <<
+			"priority window, solution cost,root g value," <<
 			"runtime of detecting conflicts,runtime of building constraint tables,runtime of building CATs," <<
 			"runtime of path finding,runtime of generating child nodes," <<
 			"preprocessing runtime,solver name,instance name" << endl;
@@ -523,7 +520,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
           num_HL_expanded << "," << num_HL_generated << "," <<
           num_LL_expanded << "," << num_LL_generated << "," <<
 
-          solution_cost << "," << dummy_start->cost << "," <<
+          priority_window << "," << solution_cost << "," << dummy_start->cost << "," <<
 
 		runtime_detect_conflicts << "," << runtime_build_CT << "," << runtime_build_CAT << "," <<
 		runtime_path_finding << "," << runtime_generate_child << "," <<
