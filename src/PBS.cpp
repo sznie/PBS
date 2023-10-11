@@ -6,8 +6,9 @@
 #include "SpaceTimeAStar.h"
 
 
-PBS::PBS(const Instance& instance, bool sipp, int screen) :
+PBS::PBS(const Instance& instance, bool sipp, int screen, int window) :
         screen(screen),
+        priority_window(window),
         num_of_agents(instance.getDefaultNumberOfAgents())
 {
     clock_t t = clock();
@@ -26,7 +27,6 @@ PBS::PBS(const Instance& instance, bool sipp, int screen) :
     {
         instance.printAgents();
     }
-    priority_window = 6;
 }
 
 
