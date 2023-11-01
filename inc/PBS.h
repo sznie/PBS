@@ -55,8 +55,7 @@ private:
 
 
     list<int> ordered_agents;
-    vector<vector<bool>> priority_graph; // [i][j] = true indicates that i is lower than j
-	vector<vector<int>> priority_graph_times; // [i][j] and [j][i] is timestep for which conflict happens
+    vector<vector<vector<bool>>> priority_graph; // [t][i][j] = true indicates that i is lower than j at timestep t
 
     string getSolverName() const;
 
@@ -75,6 +74,7 @@ private:
 
     bool generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time);
 
+	void updatePriorityGraph(int low, int high, int constraint_time);
 	bool hasConflicts(int a1, int a2) const;
     bool hasConflicts(int a1, const set<int>& agents) const;
 	void fillConflicts(int a1, int a2, PBSNode &node);
@@ -93,9 +93,10 @@ private:
 	vector<int> shuffleAgents() const;  //generate random permuattion of agent indices
 	bool terminate(PBSNode* curr); // check the stop condition and return true if it meets
 
-    void getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents);
-    void getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& agents);
-    bool hasHigherPriority(int low, int high) const; // return true if agent low is lower than agent high
+    void getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents, int timestep);
+    void getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& agents, int timestep);
+    bool hasHigherPriority(int low, int high, int timestep) const; // return true if agent low is lower than agent high
+	void getHigherPriorityConflictTimes(int a, list<pair<int, int>>& conflict_times); // returns list higher agent->time
 
 	// node operators
 	void pushNode(PBSNode* node);
@@ -109,6 +110,6 @@ private:
 	void update(PBSNode* node);
 	void printPaths() const;
 
-    void topologicalSort(list<int>& stack);
-    void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack);
+    void topologicalSort(list<int>& stack, int timestep);
+    void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack, int timestep);
 };

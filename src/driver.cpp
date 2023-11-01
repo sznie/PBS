@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 		("stats", po::value<bool>()->default_value(false), "write to files some detailed statistics")
 
 		("sipp", po::value<bool>()->default_value(1), "using SIPP as the low-level solver")
-		("window,w", po::value<int>()->default_value(0), "priority constraint window length (0: regular PBS)")
+		("window,w", po::value<int>()->default_value(6), "priority constraint window length")
 		;
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);

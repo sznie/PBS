@@ -23,7 +23,7 @@ void SIPP::updatePath(const LLNode* goal, vector<PathEntry> &path)
     path[0].location = curr->location;
 }
 
-Path SIPP::findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent)
+Path SIPP::findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent, int window, const list< pair<int, int> > conflict_times)
 {
     reset();
 

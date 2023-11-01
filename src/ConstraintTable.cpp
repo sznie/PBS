@@ -58,6 +58,24 @@ void ConstraintTable::insert2CT(const Path& path)
     insert2CT(path.back().location, (int) path.size() - 1, MAX_TIMESTEP);
 }
 
+void ConstraintTable::insert2CT(const Path& path, int conflict_time, int priority_window)
+{
+    int prev_location = path[conflict_time].location;
+    int prev_timestep = conflict_time;
+    for (int timestep = conflict_time; timestep < (int) path.size() and timestep < conflict_time + priority_window; timestep++)
+    {
+        auto curr_location = path[timestep].location;
+        if (prev_location != curr_location)
+        {
+            insert2CT(prev_location, prev_timestep, timestep); // add vertex conflict
+            insert2CT(curr_location, prev_location, timestep, timestep + 1); // add edge conflict
+            prev_location = curr_location;
+            prev_timestep = timestep;
+        }
+    }
+    insert2CT(path.back().location, (int) path.size() - 1, MAX_TIMESTEP);
+}
+
 void ConstraintTable::insertLandmark(size_t loc, int t)
 {
     auto it = landmarks.find(t);

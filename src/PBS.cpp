@@ -5,6 +5,7 @@
 #include "SIPP.h"
 #include "SpaceTimeAStar.h"
 
+int priority_max_time = 100;
 
 PBS::PBS(const Instance& instance, bool sipp, int screen, int window) :
         screen(screen),
@@ -56,8 +57,8 @@ bool PBS::solve(double _time_limit)
         if (screen > 1)
             cout << "	Expand " << *curr << "	on " << *(curr->conflict) << endl;
 
-        assert(!hasHigherPriority(curr->conflict->a1, curr->conflict->a2) and
-               !hasHigherPriority(curr->conflict->a2, curr->conflict->a1) );
+        assert(!hasHigherPriority(curr->conflict->a1, curr->conflict->a2, curr->conflict->timestep) and
+               !hasHigherPriority(curr->conflict->a2, curr->conflict->a1, curr->conflict->timestep) );
         auto t1 = clock();
         vector<Path*> copy(paths);
         generateChild(0, curr, curr->conflict->a1, curr->conflict->a2, curr->conflict->timestep);
@@ -78,28 +79,12 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     auto node = parent->children[child_id];
     node->constraint.set(low, high, conflict_time);
 
-    priority_graph[high][low] = false;
-    priority_graph[low][high] = true;
-    priority_graph_times[high][low] = conflict_time;
-    priority_graph_times[low][high] = conflict_time;
-    // contribution: update priority graph here based on conflict time, if priority_window <= 0, regular PBS
-    if (priority_window > 0) {
-        for (int a1 = 0; a1 < num_of_agents; a1++)
-        {
-            for (int a2 = 0; a2 < num_of_agents; a2++)
-            {
-                // remove the priority constraints made at timesteps earlier than window steps before
-                if (!(conflict_time - priority_graph_times[a1][a2] < priority_window)) {
-                    priority_graph[a1][a2] = false;
-                    priority_graph[a2][a1] = false;
-                }
-            }
-        }
-    }
+    // contribution: update priority graph from conflict time for the window number of timesteps following
+    updatePriorityGraph(low, high, conflict_time);
 
     if (screen > 1)
         printPriorityGraph();
-    topologicalSort(ordered_agents);
+    topologicalSort(ordered_agents, conflict_time);
     if (screen > 2)
     {
         cout << "Ordered agents: ";
@@ -124,14 +109,14 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         auto p = ordered_agents.rbegin();
         std::advance(p, topological_orders[high]);
         assert(*p == high);
-        getHigherPriorityAgents(p, higher_agents);
+        getHigherPriorityAgents(p, higher_agents, conflict_time);
         higher_agents.insert(high);
 
         set<int> lower_agents;
         auto p2 = ordered_agents.begin();
         std::advance(p2, num_of_agents - 1 - topological_orders[low]);
         assert(*p2 == low);
-        getLowerPriorityAgents(p2, lower_agents);
+        getLowerPriorityAgents(p2, lower_agents, conflict_time);
 
         for (const auto & conflict : node->conflicts)
         {
@@ -166,7 +151,7 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         auto p = ordered_agents.rbegin();
         std::advance(p, rank);
         assert(*p == a);
-        getHigherPriorityAgents(p, higher_agents);
+        getHigherPriorityAgents(p, higher_agents, conflict_time);
         assert(!higher_agents.empty());
         if (screen > 2)
         {
@@ -186,7 +171,7 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         // Delete old conflicts
         for (auto c = node->conflicts.begin(); c != node->conflicts.end();)
         {
-            if ((*c)->a1 == a or (*c)->a2 == a)
+            if (((*c)->a1 == a or (*c)->a2 == a) and ((*c)->timestep - conflict_time >= 0) and ((*c)->timestep - conflict_time < priority_window))
                 c = node->conflicts.erase(c);
             else
                 ++c;
@@ -197,7 +182,7 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         auto p2 = ordered_agents.begin();
         std::advance(p2, num_of_agents - 1 - rank);
         assert(*p2 == a);
-        getLowerPriorityAgents(p2, lower_agents);
+        getLowerPriorityAgents(p2, lower_agents, conflict_time);
         if (screen > 2 and !lower_agents.empty())
         {
             cout << "Lower agents: ";
@@ -209,7 +194,9 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         // Find new conflicts
         for (auto a2 = 0; a2 < num_of_agents; a2++)
         {
-            if (a2 == a or lookup_table[a2] or higher_agents.count(a2) > 0) // already in to_replan or has higher priority
+            // if (a2 == a or lookup_table[a2] or higher_agents.count(a2) > 0) // already in to_replan or has higher priority
+            //     continue;
+            if (a2 == a)
                 continue;
             auto t = clock();
             fillConflicts(a, a2, *node);
@@ -236,7 +223,9 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
 bool PBS::findPathForSingleAgent(PBSNode& node, const set<int>& higher_agents, int a, Path& new_path)
 {
     clock_t t = clock();
-    new_path = search_engines[a]->findOptimalPath(higher_agents, paths, a);  //TODO: add runtime check to the low level
+    list <pair<int, int>> conflict_times;
+    getHigherPriorityConflictTimes(a, conflict_times);
+    new_path = search_engines[a]->findOptimalPath(higher_agents, paths, a, priority_window, conflict_times);  //TODO: add runtime check to the low level
     num_LL_expanded += search_engines[a]->num_expanded;
     num_LL_generated += search_engines[a]->num_generated;
     runtime_build_CT += search_engines[a]->runtime_build_CT;
@@ -267,12 +256,18 @@ bool PBS::findPathForSingleAgent(PBSNode& node, const set<int>& higher_agents, i
     return true;
 }
 
+inline void PBS::updatePriorityGraph(int low, int high, int constraint_time) {
+    for (int t = 0; t < priority_window; t++) {
+        priority_graph[constraint_time + t][low][high] = true;
+        priority_graph[constraint_time + t][high][low] = false;
+    }
+}
+
 // takes the paths_found_initially and UPDATE all (constrained) paths found for agents from curr to start
 inline void PBS::update(PBSNode* node)
 {
     paths.assign(num_of_agents, nullptr);
-    priority_graph.assign(num_of_agents, vector<bool>(num_of_agents, false));
-    priority_graph_times.assign(num_of_agents, vector<int>(num_of_agents, -1));
+    priority_graph.assign(priority_max_time, vector<vector<bool>>(num_of_agents, vector<bool>(num_of_agents, false)));
 
     for (auto curr = node; curr != nullptr; curr = curr->parent)
 	{
@@ -285,9 +280,7 @@ inline void PBS::update(PBSNode* node)
 		}
         if (curr->parent != nullptr) {
             // non-root node
-            priority_graph[curr->constraint.low][curr->constraint.high] = true;
-            priority_graph_times[curr->constraint.low][curr->constraint.high] = curr->constraint.conflict_time;
-            priority_graph_times[curr->constraint.high][curr->constraint.low] = curr->constraint.conflict_time;
+            updatePriorityGraph(curr->constraint.low, curr->constraint.high, curr->constraint.conflict_time);
         }
 	}
     assert(getSumOfCosts() == node->cost);
@@ -440,10 +433,12 @@ void PBS::printPriorityGraph() const
     {
         for (int a2 = 0; a2 < num_of_agents; a2++)
         {
-            if (priority_graph[a1][a2])
-                cout << a1 << "<" << a2 << " at t=" << priority_graph_times[a1][a2] << ", ";
-            // else 
-            //     cout << a1 << ">" << a2 << " at t=" << priority_graph_times[a1][a2] << ", ";
+            for (int t = 0; t < priority_max_time; t++) {
+                if (priority_graph[t][a1][a2]) {
+                    cout << a1 << "<" << a2 << " at t=" << t << ", ";
+                    break;
+                }    
+            }
         }
     }
     cout << endl;
@@ -509,7 +504,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
 	{
 		ofstream addHeads(fileName);
 		addHeads << "runtime,#high-level expanded,#high-level generated,#low-level expanded,#low-level generated," <<
-			"priority window, solution cost,root g value," <<
+			"num agents, priority window, solution cost,root g value," <<
 			"runtime of detecting conflicts,runtime of building constraint tables,runtime of building CATs," <<
 			"runtime of path finding,runtime of generating child nodes," <<
 			"preprocessing runtime,solver name,instance name" << endl;
@@ -520,7 +515,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
           num_HL_expanded << "," << num_HL_generated << "," <<
           num_LL_expanded << "," << num_LL_generated << "," <<
 
-          priority_window << "," << solution_cost << "," << dummy_start->cost << "," <<
+          num_of_agents << "," << priority_window << "," << solution_cost << "," << dummy_start->cost << "," <<
 
 		runtime_detect_conflicts << "," << runtime_build_CT << "," << runtime_build_CAT << "," <<
 		runtime_path_finding << "," << runtime_generate_child << "," <<
@@ -671,7 +666,8 @@ bool PBS::generateRoot()
     {
         //CAT cat(dummy_start->makespan + 1);  // initialized to false
         //updateReservationTable(cat, i, *dummy_start);
-        auto new_path = search_engines[i]->findOptimalPath(higher_agents, paths, i);
+        list <pair<int, int>> conflict_list;
+        auto new_path = search_engines[i]->findOptimalPath(higher_agents, paths, i, priority_window, conflict_list);
         num_LL_expanded += search_engines[i]->num_expanded;
         num_LL_generated += search_engines[i]->num_generated;
         if (new_path.empty())
@@ -813,7 +809,7 @@ void PBS::clear()
 }
 
 
-void PBS::topologicalSort(list<int>& stack)
+void PBS::topologicalSort(list<int>& stack, int timestep)
 {
     stack.clear();
     vector<bool> visited(num_of_agents, false);
@@ -823,10 +819,10 @@ void PBS::topologicalSort(list<int>& stack)
     for (int i = 0; i < num_of_agents; i++)
     {
         if (!visited[i])
-            topologicalSortUtil(i, visited, stack);
+            topologicalSortUtil(i, visited, stack, timestep);
     }
 }
-void PBS::topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack)
+void PBS::topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack, int timestep)
 {
     // Mark the current node as visited.
     visited[v] = true;
@@ -835,42 +831,42 @@ void PBS::topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack)
     assert(!priority_graph.empty());
     for (int i = 0; i < num_of_agents; i++)
     {
-        if (priority_graph[v][i] and !visited[i])
-            topologicalSortUtil(i, visited, stack);
+        if (priority_graph[timestep][v][i] and !visited[i])
+            topologicalSortUtil(i, visited, stack, timestep);
     }
     // Push current vertex to stack which stores result
     stack.push_back(v);
 }
-void PBS::getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& higher_agents)
+void PBS::getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& higher_agents, int timestep)
 {
     for (auto p2 = std::next(p1); p2 != ordered_agents.rend(); ++p2)
     {
-        if (priority_graph[*p1][*p2])
+        if (priority_graph[timestep][*p1][*p2])
         {
             auto ret = higher_agents.insert(*p2);
             if (ret.second) // insert successfully
             {
-                getHigherPriorityAgents(p2, higher_agents);
+                getHigherPriorityAgents(p2, higher_agents, timestep);
             }
         }
     }
 }
-void PBS::getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& lower_subplans)
+void PBS::getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& lower_subplans, int timestep)
 {
     for (auto p2 = std::next(p1); p2 != ordered_agents.end(); ++p2)
     {
-        if (priority_graph[*p2][*p1])
+        if (priority_graph[timestep][*p2][*p1])
         {
             auto ret = lower_subplans.insert(*p2);
             if (ret.second) // insert successfully
             {
-                getLowerPriorityAgents(p2, lower_subplans);
+                getLowerPriorityAgents(p2, lower_subplans, timestep);
             }
         }
     }
 }
 
-bool PBS::hasHigherPriority(int low, int high) const // return true if agent low is lower than agent high
+bool PBS::hasHigherPriority(int low, int high, int timestep) const // return true if agent low is lower than agent high
 {
     std::queue<int> Q;
     vector<bool> visited(num_of_agents, false);
@@ -884,9 +880,20 @@ bool PBS::hasHigherPriority(int low, int high) const // return true if agent low
             return true;
         for (int i = 0; i < num_of_agents; i++)
         {
-            if (priority_graph[n][i] and !visited[i])
+            if (priority_graph[timestep][n][i] and !visited[i])
                 Q.push(i);
         }
     }
     return false;
+}
+
+void PBS::getHigherPriorityConflictTimes(int a, list<pair<int, int>>& conflict_times) {
+    for (int a2 = 0; a2 < num_of_agents; a2++)
+    {
+        for (int t = 0; t < priority_max_time; t++) {
+            if (priority_graph[t][a][a2]) {
+                conflict_times.push_back(make_pair(a2, t));
+            } 
+        }
+    }
 }

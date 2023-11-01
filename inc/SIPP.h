@@ -61,7 +61,7 @@ public:
 class SIPP: public SingleAgentSolver
 {
 public:
-    Path findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent) override;
+    Path findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent, int window, const list< pair<int, int> > conflict_times) override;
 
     string getName() const override { return "SIPP"; }
 
