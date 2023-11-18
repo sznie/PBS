@@ -16,7 +16,7 @@ void SpaceTimeAStar::updatePath(const LLNode* goal, vector<PathEntry> &path)
 }
 
 
-Path SpaceTimeAStar::findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent, int window, const list< pair<int, int> > conflict_times)
+Path SpaceTimeAStar::findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent, int window, const list< pair<int, int> > conflict_buckets)
 {
     optimal = true;
     Path path;
@@ -26,10 +26,10 @@ Path SpaceTimeAStar::findOptimalPath(const set<int>& higher_agents, const vector
     // build constraint table
     auto t = clock();
     ConstraintTable constraint_table(instance.num_of_cols, instance.map_size);
-    for (pair<int, int> a : conflict_times)
+    for (pair<int, int> a : conflict_buckets)
     {
-        // insert constraints around agent a.first starting from time a.second
-        constraint_table.insert2CT(*paths[a.first], a.second, window);
+        // insert constraints around agent a.first for the times in bucket a.second
+        constraint_table.insertBucket2CT(*paths[a.first], a.second, window);
     }
     runtime_build_CT = (double)(clock() - t) / CLOCKS_PER_SEC;
 

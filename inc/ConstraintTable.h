@@ -33,7 +33,7 @@ public:
         landmarks.clear();
         cat.clear();
     }
-    void insert2CT(const Path& path, int conflict_time, int priority_window); // insert a path to the constraint table starting at conflict for window time
+    void insertBucket2CT(const Path& path, int conflict_bucket, int priority_window); // insert a path to the constraint table window time in bucket
     void insert2CT(const Path& path); // insert a path to the constraint table
     void insert2CT(size_t loc, int t_min, int t_max); // insert a vertex constraint to the constraint table
     void insert2CT(size_t from, size_t to, int t_min, int t_max); // insert an edge constraint to the constraint table

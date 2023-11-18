@@ -73,10 +73,13 @@ private:
 	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
 
     bool generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time);
+	bool resolveBucket(PBSNode* parent, int low, int high, int bucket, list<tuple<int,int,int>>& buckets_to_replan); 
 
+	int bucketFromTimestep(int timestep) const;
 	void updatePriorityGraph(int low, int high, int constraint_time);
 	bool hasConflicts(int a1, int a2) const;
     bool hasConflicts(int a1, const set<int>& agents) const;
+	bool hasConflictsInBucket(int a1, int a2, int bucket) const;
 	void fillConflicts(int a1, int a2, PBSNode &node);
 	shared_ptr<Conflict> chooseConflict(const PBSNode &node) const;
     int getSumOfCosts() const;
@@ -93,10 +96,11 @@ private:
 	vector<int> shuffleAgents() const;  //generate random permuattion of agent indices
 	bool terminate(PBSNode* curr); // check the stop condition and return true if it meets
 
-    void getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents, int timestep);
-    void getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& agents, int timestep);
+    int getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents, int timestep);
+    int getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& agents, int timestep);
     bool hasHigherPriority(int low, int high, int timestep) const; // return true if agent low is lower than agent high
-	void getHigherPriorityConflictTimes(int a, list<pair<int, int>>& conflict_times); // returns list higher agent->time
+	void getHigherPriorityConstraintBuckets(int a, list<pair<int, int>>& conflict_times); // returns list higher agent->time
+	void getHigherPriorityConstraintBucketsUtil(int a2, int bucket, list<pair<int, int>>& conflict_buckets);
 
 	// node operators
 	void pushNode(PBSNode* node);
@@ -110,6 +114,6 @@ private:
 	void update(PBSNode* node);
 	void printPaths() const;
 
-    void topologicalSort(list<int>& stack, int timestep);
-    void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack, int timestep);
+    int topologicalSort(list<int>& stack, int timestep);
+    void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack, int bucket);
 };

@@ -58,22 +58,30 @@ void ConstraintTable::insert2CT(const Path& path)
     insert2CT(path.back().location, (int) path.size() - 1, MAX_TIMESTEP);
 }
 
-void ConstraintTable::insert2CT(const Path& path, int conflict_time, int priority_window)
+void ConstraintTable::insertBucket2CT(const Path& path, int conflict_bucket, int priority_window)
 {
-    int prev_location = path[conflict_time].location;
-    int prev_timestep = conflict_time;
-    for (int timestep = conflict_time; timestep < (int) path.size() and timestep < conflict_time + priority_window; timestep++)
+    int first_timestep = conflict_bucket * priority_window;
+    int last_timestep = first_timestep + priority_window;
+    int prev_location = path[first_timestep].location;
+    int prev_timestep = first_timestep;
+    for (int timestep = first_timestep; timestep < (int) path.size() and timestep <= last_timestep; timestep++)
     {
         auto curr_location = path[timestep].location;
         if (prev_location != curr_location)
         {
+            // cout << "insert " << prev_location << " " << curr_location << " " << prev_timestep << " " << timestep << endl;
             insert2CT(prev_location, prev_timestep, timestep); // add vertex conflict
             insert2CT(curr_location, prev_location, timestep, timestep + 1); // add edge conflict
             prev_location = curr_location;
             prev_timestep = timestep;
         }
     }
-    insert2CT(path.back().location, (int) path.size() - 1, MAX_TIMESTEP);
+    // if path to avoid ends in this bucket, add constraint for end of path onwards
+    if (last_timestep >= (int) path.size()) {
+        // cout << "bucket CT " << first_timestep << " " << path.size() << endl;
+        insert2CT(path.back().location, (int) path.size() - 1, MAX_TIMESTEP);
+    }
+    // problem: path to avoid is longer, only looking at bucket, goal state of shorter path (lower priority) is in the path to avoid (higher priority)
 }
 
 void ConstraintTable::insertLandmark(size_t loc, int t)
