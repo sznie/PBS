@@ -57,6 +57,7 @@ bool PBS::solve(double _time_limit)
         if (screen > 1)
             cout << "	Expand " << *curr << "	on " << *(curr->conflict) << " b=" << bucketFromTimestep(curr->conflict->timestep) << endl;
 
+        assert(hasConflictsInBucket(curr->conflict->a1, curr->conflict->a2, bucketFromTimestep(curr->conflict->timestep)));
         assert(!hasHigherPriority(curr->conflict->a1, curr->conflict->a2, curr->conflict->timestep) and
                !hasHigherPriority(curr->conflict->a2, curr->conflict->a1, curr->conflict->timestep) );
         auto t1 = clock();
@@ -112,14 +113,17 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
         {
             int a1 = conflict->a1;
             int a2 = conflict->a2;
+            int b = bucketFromTimestep(conflict->timestep);
             if (a1 == low or a2 == low)
                 continue;
             if (topological_orders[a1] > topological_orders[a2])
             {
                 std::swap(a1, a2);
             }
-            if (!lookup_table[a1] and lower_agents.find(a1) != lower_agents.end() and higher_agents.find(a2) != higher_agents.end())
+            if (b == bucket and !lookup_table[a1] and lower_agents.find(a1) != lower_agents.end() and higher_agents.find(a2) != higher_agents.end())
             {
+                assert(hasConflictsInBucket(a1, a2, bucket));
+                // cout << "to replan " << a1 << " " << a2 << " b=" << bucket << endl;
                 to_replan.emplace(topological_orders[a1], a1);
                 lookup_table[a1] = true;
             }
@@ -154,6 +158,9 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
         {
             return false;
         }
+        for (int a2 : higher_agents) {
+            assert(!hasConflictsInBucket(a, a2, bucket));
+        }
 
         // Delete old conflicts
         for (auto c = node->conflicts.begin(); c != node->conflicts.end();)
@@ -173,7 +180,7 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
         std::advance(p2, num_of_agents - 1 - rank);
         assert(*p2 == a);
         bucket = getLowerPriorityAgents(p2, lower_agents, conflict_time);
-        if (screen > 2 and !lower_agents.empty())
+        if (screen > 2)
         {
             cout << "Lower agents in bucket " << bucket << ": ";
             for (auto i : lower_agents)
@@ -190,12 +197,12 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
             auto t = clock();
             // assert if higher_agents.count(a2) > 0, then the conflicts should NOT be in this bucket
             if (higher_agents.count(a2) > 0) {
-                cout << "higher " << a << "<" << a2 << " in bucket=" << bucket << ", " << endl;
                 assert(!hasConflictsInBucket(a, a2, bucket));
             }
             for (int b = 0; b < (int) priority_max_time / priority_window; b++) {
                 if (hasConflictsInBucket(a, a2, b))
                 {
+                    // cout << "found conflict " << a << " " << a2<< " b=" << b << endl;
                     node->conflicts.emplace_back(new Conflict(a, a2, b*priority_window));
                     // if working in this bucket
                     if (b == bucket) {
@@ -207,14 +214,12 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
                             lookup_table[a2] = true;
                         }
                     } else {
-                        // a constraint is violated between a and a2 in bucket b
-                        if (priority_graph[b][a][a2]) {
-                            cout << "   insert to replan " << b << " " << "(" << a << "," << a2 << ")" << endl;
+                        // Replan bucket if topological sort is violated, not just between a and a2
+                        if (constraintIsViolated(a, a2, b)) {
                             buckets_to_replan.emplace_back(make_tuple(b, a, a2));
                         }
-                        if (priority_graph[b][a2][a]) {
+                        if (constraintIsViolated(a2, a, b)) {
                             buckets_to_replan.emplace_back(make_tuple(b, a2, a));
-                            cout << "   insert to replan " << b << " " << "(" << a2 << "," << a << ")" << endl;
                         }
                     }
                 }
@@ -222,7 +227,7 @@ bool PBS::resolveBucket(PBSNode* node, int low, int high, int bucket, list<tuple
             runtime_detect_conflicts += (double)(clock() - t) / CLOCKS_PER_SEC;
         }
     }
-    cout << "done resolving b=" << bucket << " " << low << "<" << high << endl;
+    // cout << "done resolving b=" << bucket << " " << low << "<" << high << endl;
     return true;
 }
 
@@ -236,11 +241,13 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     // contribution: update priority graph for the window number of timesteps in bucket where conflict falls
     updatePriorityGraph(low, high, conflict_time);
 
-    if (screen > 1)
+    if (screen > 2)
         printPriorityGraph();
 
     std::list<tuple<int, int, int>> buckets_to_replan; // <bucket, low, high>
     buckets_to_replan.push_back(make_tuple(bucketFromTimestep(conflict_time), low, high));
+    vector<int> counts;
+    counts.assign(num_of_agents, 0);
     // while a bucket's constraints is violated:
     //    resolve bucket
     //    check constraints in other buckets are violated
@@ -249,11 +256,19 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         int bucket, agent1, agent2;
         tie(bucket, agent1, agent2) = buckets_to_replan.front();
         buckets_to_replan.pop_front();
-        cout << "   Resolve bucket " << agent1 << "<" << agent2 << " in b=" << bucket << "/ replan: ";
-        for (auto i : buckets_to_replan)
-            cout << "(" << get<0>(i) << "," << get<1>(i) <<"," << get<2>(i) << "),";
-        cout << endl;
-        assert(hasConflictsInBucket(agent1, agent2, bucket));
+        if (screen > 2) {
+            cout << "   Resolve bucket " << agent1 << "<" << agent2 << " in b=" << bucket << "/ replan: ";
+            for (auto i : buckets_to_replan)
+                cout << "(" << get<0>(i) << "," << get<1>(i) <<"," << get<2>(i) << "),";
+            cout << endl;
+        }
+        if (!hasConflictsInBucket(agent1, agent2, bucket)) continue;
+        if (counts[agent1] > 5) {
+            delete node;
+            parent->children[child_id] = nullptr;
+            return false;
+        }
+        counts[agent1] += 1;
         
         int resolve_bucket = resolveBucket(node, agent1, agent2, bucket, buckets_to_replan);
         if (!resolve_bucket) {
@@ -284,7 +299,6 @@ bool PBS::findPathForSingleAgent(PBSNode& node, const set<int>& higher_agents, i
     if (new_path.empty())
         return false;
     assert(paths[a] != nullptr and !isSamePath(*paths[a], new_path));
-    cout << node << " new path " << (int)new_path.size() << " old " << (int)paths[a]->size() << endl;
     node.cost += (int)new_path.size() - (int)paths[a]->size();
     if (node.makespan >= paths[a]->size())
     {
@@ -301,11 +315,14 @@ bool PBS::findPathForSingleAgent(PBSNode& node, const set<int>& higher_agents, i
                 node.makespan = max(node.makespan, paths[i]->size() - 1);
         }
     }
+    // path for agent may be replanned more than once per node so must remove outdated path first
+    node.paths.remove_if([a](const std::pair<int, Path>& p) { return p.first == a; });
     node.paths.emplace_back(a, new_path);
     paths[a] = &node.paths.back().second;
     for (pair<int, int> a2 : conflict_buckets)
     {
         // the new path found for a avoids higher agent a2.first in bucket a2.second
+        // cout << "   has conflict " << a << " " << a2.first << " b=" << a2.second << endl;
         assert(!hasConflictsInBucket(a, a2.first, a2.second));
     }
     return true;
@@ -329,14 +346,14 @@ inline void PBS::update(PBSNode* node)
     paths.assign(num_of_agents, nullptr);
     int num_priority_buckets = (int) priority_max_time / priority_window;
     priority_graph.assign(num_priority_buckets, vector<vector<bool>>(num_of_agents, vector<bool>(num_of_agents, false)));
-
+    
     for (auto curr = node; curr != nullptr; curr = curr->parent)
 	{
-        cout << *curr << endl;
+        // cout << curr->constraint << " " << *curr << endl;
         for (auto & path : curr->paths)
 		{
 			if (paths[path.first] == nullptr)
-			{
+            {
                 paths[path.first] = &(path.second); // <int, Path>
 			}
 		}
@@ -345,7 +362,7 @@ inline void PBS::update(PBSNode* node)
             updatePriorityGraph(curr->constraint.low, curr->constraint.high, curr->constraint.conflict_time);
         }
 	}
-    cout << "sum=" << getSumOfCosts() << " node=" << node->cost << " " << *node << endl;
+
     assert(getSumOfCosts() == node->cost);
 }
 
@@ -527,6 +544,9 @@ void PBS::printPaths() const
 {
     for (int i = 0; i < num_of_agents; i++)
 	{
+        if (i != 35 and i != 30) {
+            continue;
+        }
 		cout << "Agent " << i << " (" << search_engines[i]->my_heuristic[search_engines[i]->start_location] << " -->" <<
 			paths[i]->size() - 1 << "): ";
 		for (const auto & t : *paths[i])
@@ -1005,12 +1025,12 @@ bool PBS::hasHigherPriority(int low, int high, int timestep) const // return tru
 // return buckets where agent a must be constrained
 void PBS::getHigherPriorityConstraintBuckets(int a, list<pair<int, int>>& conflict_buckets) {
     int num_buckets = (int) priority_max_time / priority_window;
-    cout << "Higher priority constraint buckets" << endl;
+    // cout << "Higher priority constraint buckets" << endl;
     for (int bucket = 0; bucket < num_buckets; bucket++) {
         for (int a2 = 0; a2 < num_of_agents; a2++)
         {
             if (priority_graph[bucket][a][a2]) {
-                cout << "   constrained: " << a << "<" << a2 << " in bucket " << bucket << endl;
+                // cout << "   constrained: " << a << "<" << a2 << " in bucket " << bucket << endl;
                 conflict_buckets.push_back(make_pair(a2, bucket));
                 getHigherPriorityConstraintBucketsUtil(a2, bucket, conflict_buckets);
             } 
@@ -1023,9 +1043,20 @@ void PBS::getHigherPriorityConstraintBucketsUtil(int a2, int bucket, list<pair<i
     for (int a3 = 0; a3 < num_of_agents; a3++)
     {
         if (priority_graph[bucket][a2][a3]) {
-            cout << "   constrained: " << a2 << "<" << a3 << " in bucket " << bucket << endl;
             conflict_buckets.push_back(make_pair(a3, bucket));
             getHigherPriorityConstraintBucketsUtil(a3, bucket, conflict_buckets);
         }
     }
+}
+
+// return buckets where agent a must be constrained
+bool PBS::constraintIsViolated(int a, int agent, int bucket) {
+    for (int a2 = 0; a2 < num_of_agents; a2++)
+    {
+        if (priority_graph[bucket][a][a2]) {
+            if (a2 == agent) return true;
+            if (constraintIsViolated(a2, agent, bucket)) return true;
+        } 
+    }
+    return false;
 }

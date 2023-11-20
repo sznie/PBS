@@ -67,14 +67,14 @@ void ConstraintTable::insertBucket2CT(const Path& path, int conflict_bucket, int
     for (int timestep = first_timestep; timestep < (int) path.size() and timestep <= last_timestep; timestep++)
     {
         auto curr_location = path[timestep].location;
-        if (prev_location != curr_location)
-        {
-            // cout << "insert " << prev_location << " " << curr_location << " " << prev_timestep << " " << timestep << endl;
-            insert2CT(prev_location, prev_timestep, timestep); // add vertex conflict
-            insert2CT(curr_location, prev_location, timestep, timestep + 1); // add edge conflict
-            prev_location = curr_location;
-            prev_timestep = timestep;
-        }
+        // if (prev_location != curr_location)
+        // {
+        // cout << "insert " << prev_location << " " << curr_location << " " << prev_timestep << " " << timestep << endl;
+        insert2CT(prev_location, prev_timestep, timestep); // add vertex conflict
+        insert2CT(curr_location, prev_location, timestep, timestep + 1); // add edge conflict
+        prev_location = curr_location;
+        prev_timestep = timestep;
+        // }
     }
     // if path to avoid ends in this bucket, add constraint for end of path onwards
     if (last_timestep >= (int) path.size()) {

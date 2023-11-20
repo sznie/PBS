@@ -101,6 +101,7 @@ private:
     bool hasHigherPriority(int low, int high, int timestep) const; // return true if agent low is lower than agent high
 	void getHigherPriorityConstraintBuckets(int a, list<pair<int, int>>& conflict_times); // returns list higher agent->time
 	void getHigherPriorityConstraintBucketsUtil(int a2, int bucket, list<pair<int, int>>& conflict_buckets);
+	bool constraintIsViolated(int a, int agent, int bucket);
 
 	// node operators
 	void pushNode(PBSNode* node);
