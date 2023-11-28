@@ -632,7 +632,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
 	{
 		ofstream addHeads(fileName);
 		addHeads << "runtime,#high-level expanded,#high-level generated,#low-level expanded,#low-level generated," <<
-			"num agents, priority window, solution cost,root g value," <<
+			"num agents,priority window,solution cost,root g value," <<
 			"runtime of detecting conflicts,runtime of building constraint tables,runtime of building CATs," <<
 			"runtime of path finding,runtime of generating child nodes," <<
 			"preprocessing runtime,solver name,instance name" << endl;
