@@ -8,12 +8,14 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// stats
 	double runtime = 0;
-	double runtime_generate_child = 0; // runtimr of generating child nodes
-	double runtime_build_CT = 0; // runtimr of building constraint table
+	double runtime_generate_child = 0; // runtime of generating child nodes
+	double runtime_build_CT = 0; // runtime of building constraint table
 	double runtime_build_CAT = 0; // runtime of building conflict avoidance table
 	double runtime_path_finding = 0; // runtime of finding paths for single agents
 	double runtime_detect_conflicts = 0;
 	double runtime_preprocessing = 0; // runtime of building heuristic table for the low level
+	double runtime_in_cycles = 0; // runtime being spent in cycles
+	double num_cycles_detected = 0;
 
 	uint64_t num_HL_expanded = 0;
 	uint64_t num_HL_generated = 0;

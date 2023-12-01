@@ -251,6 +251,7 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
     // while a bucket's constraints is violated:
     //    resolve bucket
     //    check constraints in other buckets are violated
+    auto t1 = clock();
     while(!buckets_to_replan.empty())
     {
         int bucket, agent1, agent2;
@@ -265,9 +266,11 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         if (!hasConflictsInBucket(agent1, agent2, bucket)) continue;
         if (counts[agent1] > 5) {
 
-            if (screen > -1) {
+            if (screen > 2) {
                 cout << "Node " << parent->time_generated << "   CYCLE DETECTED: Agent " << agent1 << endl;
             }
+            runtime_in_cycles += (double)(clock() - t1) / CLOCKS_PER_SEC;
+            num_cycles_detected += 1;
             delete node;
             parent->children[child_id] = nullptr;
             return false;
@@ -637,6 +640,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
 		ofstream addHeads(fileName);
 		addHeads << "runtime,#high-level expanded,#high-level generated,#low-level expanded,#low-level generated," <<
 			"num agents,priority window,solution cost,root g value," <<
+            "runtime in cycles,num cycles detected," <<
 			"runtime of detecting conflicts,runtime of building constraint tables,runtime of building CATs," <<
 			"runtime of path finding,runtime of generating child nodes," <<
 			"preprocessing runtime,solver name,instance name" << endl;
@@ -648,6 +652,7 @@ void PBS::saveResults(const string &fileName, const string &instanceName) const
           num_LL_expanded << "," << num_LL_generated << "," <<
 
           num_of_agents << "," << priority_window << "," << solution_cost << "," << dummy_start->cost << "," <<
+          runtime_in_cycles << "," << num_cycles_detected << "," <<
 
 		runtime_detect_conflicts << "," << runtime_build_CT << "," << runtime_build_CAT << "," <<
 		runtime_path_finding << "," << runtime_generate_child << "," <<

@@ -31,8 +31,7 @@ class BatchRunnerWindowed:
         self.sipp = sipp
         self.cutoffTime = cutoffTime
         self.map = mapName
-        if self.map.startswith('small'):
-            self.smallmap = True
+        self.smallmap = self.map.startswith('small')
         self.output = output
         
         self.outputCSVFile = output + ".csv"
@@ -116,18 +115,17 @@ class BatchRunnerOriginal:
         self.sipp = sipp
         self.cutoffTime = cutoffTime
         self.map = mapName
-        if self.map.startswith('small'):
-            self.smallmap = True
+        self.smallmap = self.map.startswith('small')
         self.output = output
         
         self.outputCSVFile = output + ".csv"
 
-    def runSingleSettingsOnMap(self, numAgents, aScen):
+    def runSingleSettingsOnMap(self, numAgents, aScen, aSeed):
         # Main command
-        command = "./pbs_og"
+        command = "./og_pbs/PBS/pbs"
 
         # Batch experiment settings
-        # command += " --seed={}".format(aSeed)
+        command += " --seed={}".format(aSeed)
         command += " --agentNum={}".format(numAgents)
         if self.smallmap:
             command += " --map=./maps/small_maps/" + self.map + ".map"
@@ -159,7 +157,7 @@ class BatchRunnerOriginal:
             return len(df), numFailed
         return 0, 0
 
-    def runBatchExps(self, agentNumbers, scens):
+    def runBatchExps(self, agentNumbers, scens, seeds):
         for aNum in agentNumbers:
             numRan, numFailed = self.detectExistingStatus(aNum)
             if numRan >= len(scens) / 2 and numRan - numFailed <= len(scens) / 2:
@@ -173,12 +171,13 @@ class BatchRunnerOriginal:
             else:
                 ### Run across scens and seeds
                 for aScen in scens:
-                    print(f"    Original: agents={aNum}, aScen={aScen}, map={self.map}")
-                    self.runSingleSettingsOnMap(aNum, aScen)
-                    # stop if with this many agents more than half failed
-                    numRan, numFailed = self.detectExistingStatus(aNum)
-                    if numFailed > len(scens) / 2:
-                        break
+                    for aSeed in seeds:
+                        print(f"    Original: agents={aNum}, aScen={aScen}, aSeed={aSeed} map={self.map}")
+                        self.runSingleSettingsOnMap(aNum, aScen, aSeed)
+                        # stop if with this many agents more than half failed
+                        numRan, numFailed = self.detectExistingStatus(aNum)
+                        if numFailed > len(scens) / 2:
+                            break
                 # Check if new run failed
                 numRan, numFailed = self.detectExistingStatus(aNum)
                 print(f"failed={numFailed}/{numRan}")
@@ -201,7 +200,7 @@ def pbsExps(mapName, run=["window", "original"]):
     
     if "original" in run:
         LOGPATH = "logs"
-        batchFolderName = os.path.join(LOGPATH, "PBS")
+        batchFolderName = os.path.join(LOGPATH, "PBS/")
 
         expSettings = dict(
             solver="SpaceTimeAStar",
@@ -212,11 +211,11 @@ def pbsExps(mapName, run=["window", "original"]):
         )
 
         myBR = BatchRunnerOriginal(**expSettings)
-        myBR.runBatchExps(agentRange, scens)
+        myBR.runBatchExps(agentRange, scens, seeds)
 
     if "window" in run:
         LOGPATH = "logs"
-        batchFolderName = os.path.join(LOGPATH, "windowedPBS")
+        batchFolderName = os.path.join(LOGPATH, "windowedPBS/")
 
         expSettings = dict(
             solver="SpaceTimeAStar",
@@ -235,7 +234,6 @@ def pbsExps(mapName, run=["window", "original"]):
 
 if __name__ == "__main__":
 
-    # for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
-    for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
-        # pbsExps(map)
+    for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
+    # for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
         pbsExps(map, ["original", "window"])
