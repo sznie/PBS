@@ -264,6 +264,10 @@ bool PBS::generateChild(int child_id, PBSNode* parent, int low, int high, int co
         }
         if (!hasConflictsInBucket(agent1, agent2, bucket)) continue;
         if (counts[agent1] > 5) {
+
+            if (screen > -1) {
+                cout << "Node " << parent->time_generated << "   CYCLE DETECTED: Agent " << agent1 << endl;
+            }
             delete node;
             parent->children[child_id] = nullptr;
             return false;
@@ -742,7 +746,7 @@ void PBS::printConflicts(const PBSNode &curr)
 {
 	for (const auto& conflict : curr.conflicts)
 	{
-		cout << "conflict: " << *conflict << " b=" << (int) (conflict->timestep) / 6 << endl;;
+		cout << "conflict: " << *conflict << " b=" << (int) (conflict->timestep) / 1 << endl;;
 	}
 }
 

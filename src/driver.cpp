@@ -33,6 +33,7 @@ int main(int argc, char** argv)
 
 		("sipp", po::value<bool>()->default_value(1), "using SIPP as the low-level solver")
 		("window,w", po::value<int>()->default_value(6), "priority constraint window length")
+		("seed", po::value<int>()->default_value(0), "Random seed")
 		;
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -51,7 +52,8 @@ int main(int argc, char** argv)
 	Instance instance(vm["map"].as<string>(), vm["agents"].as<string>(),
 		vm["agentNum"].as<int>());
 
-	srand(0);
+    srand(vm["seed"].as<int>());
+
     PBS pbs(instance, vm["sipp"].as<bool>(), vm["screen"].as<int>(), vm["window"].as<int>());
     // run
     double runtime = 0;
@@ -62,7 +64,7 @@ int main(int argc, char** argv)
         pbs.savePaths(vm["outputPaths"].as<string>());
     size_t pos = vm["output"].as<string>().rfind('.');      // position of the file extension
     string output_name = vm["output"].as<string>().substr(0, pos);     // get the name without extension
-    pbs.saveCT(output_name); // for debug
+    // pbs.saveCT(output_name); // for debug
     pbs.clearSearchEngines();
 
 	return 0;

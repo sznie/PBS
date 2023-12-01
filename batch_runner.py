@@ -23,7 +23,7 @@ mapsToNumAgents = {
 
 
 
-class BatchRunner:
+class BatchRunnerWindowed:
     """Class for running a single scen file"""
 
     def __init__(self, solver, sipp, cutoffTime, mapName, output) -> None:
@@ -31,28 +31,33 @@ class BatchRunner:
         self.sipp = sipp
         self.cutoffTime = cutoffTime
         self.map = mapName
+        if self.map.startswith('small'):
+            self.smallmap = True
         self.output = output
         
         self.outputCSVFile = output + ".csv"
 
-    def runSingleSettingsOnMap(self, numAgents, window, aScen):
+    def runSingleSettingsOnMap(self, numAgents, window, aScen, aSeed):
         # Main command
-        command = "./pbs"
+        command = "./build_debug/pbs"
 
         # Batch experiment settings
-        # command += " --seed={}".format(aSeed)
-        command += " --agentNum={}".format(numAgents)
+        command += " --seed={}".format(aSeed)
         command += " --window={}".format(window)
-        command += " --map=./maps/" + self.map + ".map"
-        command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
-        # command += " --vertex=../data/mapf-3d/" + self.map + "_Nodes.csv"
-        # command += " --edge=../data/mapf-3d/" + self.map + "_Edges.csv"
-        # command += " --outputCSVFile={}".format(self.outputCSVFile)
+        if self.smallmap:
+            command += " --map=./maps/small_maps/" + self.map + ".map"
+            command += " --agents=./maps/small_scens/" + f"{self.map}-random-{aScen}.scen"
+        else:
+            command += " --agentNum={}".format(numAgents)
+            command += " --map=./maps/" + self.map + ".map"
+            command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
         command += " --output={}".format(self.outputCSVFile)
 
         # Exp Settings
         command += " --sipp={}".format(self.sipp)
         command += " --cutoffTime={}".format(self.cutoffTime)
+
+        print(command)
 
         # True if want failure error
         subprocess.run(command.split(" "), check=False)
@@ -72,7 +77,7 @@ class BatchRunner:
             return len(df), numFailed
         return 0, 0
 
-    def runBatchExps(self, agentNumbers, priorityWindows, scens):
+    def runBatchExps(self, agentNumbers, priorityWindows, scens, seeds):
         for window in priorityWindows:
             for aNum in agentNumbers:
                 numRan, numFailed = self.detectExistingStatus(aNum, window)
@@ -87,12 +92,13 @@ class BatchRunner:
                 else:
                     ### Run across scens and seeds
                     for aScen in scens:
-                        print(f"    agents={aNum}, window={window}, aScen={aScen}, map={self.map}")
-                        self.runSingleSettingsOnMap(aNum, window, aScen)
-                        # stop if with this many agents more than half failed
-                        numRan, numFailed = self.detectExistingStatus(aNum, window)
-                        if numFailed > len(scens) / 2:
-                            break
+                        for aSeed in seeds:
+                            print(f"    Windowed: agents={aNum}, window={window}, seed={aSeed} aScen={aScen}, map={self.map}")
+                            self.runSingleSettingsOnMap(aNum, window, aScen, aSeed)
+                            # stop if with this many agents more than half failed
+                            numRan, numFailed = self.detectExistingStatus(aNum, window)
+                            if numFailed > len(scens) / 2:
+                                break
                     # Check if new run failed
                     numRan, numFailed = self.detectExistingStatus(aNum, window)
                     print(f"failed={numFailed}/{numRan}")
@@ -102,46 +108,134 @@ class BatchRunner:
                         break
 
 
-def runOnAgents(expSettings, agentRange, windows, scens):
-    myBR = BatchRunner(**expSettings)
-    myBR.runBatchExps(agentRange, windows, scens)
+class BatchRunnerOriginal:
+    """Class for running a single scen file"""
+
+    def __init__(self, solver, sipp, cutoffTime, mapName, output) -> None:
+        self.solver = solver
+        self.sipp = sipp
+        self.cutoffTime = cutoffTime
+        self.map = mapName
+        if self.map.startswith('small'):
+            self.smallmap = True
+        self.output = output
+        
+        self.outputCSVFile = output + ".csv"
+
+    def runSingleSettingsOnMap(self, numAgents, aScen):
+        # Main command
+        command = "./pbs_og"
+
+        # Batch experiment settings
+        # command += " --seed={}".format(aSeed)
+        command += " --agentNum={}".format(numAgents)
+        if self.smallmap:
+            command += " --map=./maps/small_maps/" + self.map + ".map"
+            command += " --agents=./maps/small_scens/" + f"{self.map}-random-{aScen}.scen"
+        else:   
+            command += " --map=./maps/" + self.map + ".map"
+            command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
+        command += " --output={}".format(self.outputCSVFile)
+
+        # Exp Settings
+        command += " --sipp={}".format(self.sipp)
+        command += " --cutoffTime={}".format(self.cutoffTime)
+
+        # True if want failure error
+        subprocess.run(command.split(" "), check=False)
+
+    def detectExistingStatus(self, numAgents):
+        if exists(self.outputCSVFile):
+            df = pd.read_csv(self.outputCSVFile)
+            if self.sipp:
+                solverName = "SIPP"
+            else:
+                solverName = "PBS with AStar"
+            # pdb.set_trace()
+            df = df[(df["solver name"] == solverName) & (df["num agents"] == numAgents)]
+            
+            numFailed = len(df[(df["solution cost"] <= 0) |
+                            (df["solution cost"] >= 1073741823)])
+            return len(df), numFailed
+        return 0, 0
+
+    def runBatchExps(self, agentNumbers, scens):
+        for aNum in agentNumbers:
+            numRan, numFailed = self.detectExistingStatus(aNum)
+            if numRan >= len(scens) / 2 and numRan - numFailed <= len(scens) / 2:
+            # if numFailed >= len(seeds)/2:  # Check if existing run all failed
+                print(
+                    "Terminating early because all failed with {} number of agents".format(aNum))
+                break
+            elif numRan >= len(scens):  # Check if ran existing run
+                print("Skipping {} completely as already run!".format(aNum))
+                continue
+            else:
+                ### Run across scens and seeds
+                for aScen in scens:
+                    print(f"    Original: agents={aNum}, aScen={aScen}, map={self.map}")
+                    self.runSingleSettingsOnMap(aNum, aScen)
+                    # stop if with this many agents more than half failed
+                    numRan, numFailed = self.detectExistingStatus(aNum)
+                    if numFailed > len(scens) / 2:
+                        break
+                # Check if new run failed
+                numRan, numFailed = self.detectExistingStatus(aNum)
+                print(f"failed={numFailed}/{numRan}")
+                if numRan - numFailed <= len(scens) / 2:
+                    print(
+                        "Terminating early because all failed with {} number of agents".format(aNum))
+                    break
 
 
-def pbsExps(mapName):
-    LOGPATH = "logs"
-    batchFolderName = os.path.join(LOGPATH, "windowedPBS")
+def pbsExps(mapName, run=["window", "original"]):
+    if mapName in mapsToNumAgents:
+        lo, hi = mapsToNumAgents[mapName]
+        lo = 100
+        agentRange = range(lo, hi+1, 100)
+    else:
+        agentRange = range(2, 10, 1)
 
-    expSettings = dict(
-        solver="SpaceTimeAStar",
-        cutoffTime=300,
-        mapName=mapName,
-        output=batchFolderName + mapName,
-        sipp=False,
-    )
+    seeds = list(range(0, 5))
+    scens = list(range(1,2))
+    
+    if "original" in run:
+        LOGPATH = "logs"
+        batchFolderName = os.path.join(LOGPATH, "PBS")
 
-    lo, hi = mapsToNumAgents[mapName]
+        expSettings = dict(
+            solver="SpaceTimeAStar",
+            cutoffTime=60,
+            mapName=mapName,
+            output=batchFolderName + mapName,
+            sipp=False,
+        )
 
-    agentRange = range(lo, hi+1, 50)
-    windows = [1,2,4,8,16,32]
-    # seeds = list(range(1, 11))
-    scens = list(range(1,26))
-    runOnAgents(expSettings, agentRange, windows, scens)
+        myBR = BatchRunnerOriginal(**expSettings)
+        myBR.runBatchExps(agentRange, scens)
+
+    if "window" in run:
+        LOGPATH = "logs"
+        batchFolderName = os.path.join(LOGPATH, "windowedPBS")
+
+        expSettings = dict(
+            solver="SpaceTimeAStar",
+            cutoffTime=60,
+            mapName=mapName,
+            output=batchFolderName + mapName,
+            sipp=False,
+        )
+
+        windows = [1, 4, 16, 64]
+        
+        myBR = BatchRunnerWindowed(**expSettings)
+        myBR.runBatchExps(agentRange, windows, scens, seeds)
+
 
 
 if __name__ == "__main__":
 
-    # parser = argparse.ArgumentParser(
-    #                 prog='3D MAPF',
-    #                 description='For running experiments on different 3D MAPF maps',
-    #                 epilog='Text at the bottom of help')
-
-    # parser.add_argument('-m', '--map')
-
-    # args = parser.parse_args()
-    
-    # runExps(args.map)
-    # pbsExps(args.map)
-
-    # for map in ["random-32-32-20", "Paris_1_256", "den312d",]:
-    for map in [ "empty-48-48"]:
-        pbsExps(map)
+    # for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
+    for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
+        # pbsExps(map)
+        pbsExps(map, ["original", "window"])
