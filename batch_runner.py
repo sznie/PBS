@@ -21,6 +21,15 @@ mapsToNumAgents = {
     "ht_chantry": (50, 1000), # Verified
 }
 
+smallMapsToNumAgents = {
+    "small_connector": (1, 6),
+    "small_corners": (1, 5),
+    "small_loopchain": (1, 7),
+    "small_string": (1, 6),
+    "small_tree": (1, 3),
+    "small_tunnel": (1, 4),
+}
+
 
 
 class BatchRunnerWindowed:
@@ -43,11 +52,12 @@ class BatchRunnerWindowed:
         # Batch experiment settings
         command += " --seed={}".format(aSeed)
         command += " --window={}".format(window)
+        command += " --agentNum={}".format(numAgents)
+        
         if self.smallmap:
             command += " --map=./maps/small_maps/" + self.map + ".map"
             command += " --agents=./maps/small_scens/" + f"{self.map}-random-{aScen}.scen"
         else:
-            command += " --agentNum={}".format(numAgents)
             command += " --map=./maps/" + self.map + ".map"
             command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
         command += " --output={}".format(self.outputCSVFile)
@@ -192,11 +202,16 @@ def pbsExps(mapName, run=["window", "original"]):
         lo, hi = mapsToNumAgents[mapName]
         lo = 100
         agentRange = range(lo, hi+1, 100)
-    else:
-        agentRange = range(2, 10, 1)
+        scens = list(range(1,26))
+        windows = [1, 4, 16, 64]
+    
+    elif mapName in smallMapsToNumAgents:
+        scens = list(range(1,2))
+        lo, hi = smallMapsToNumAgents[mapName]
+        agentRange = range(lo, hi+1, 1)
+        windows = [1, 2, 3, 4, 5]
 
     seeds = list(range(0, 5))
-    scens = list(range(1,2))
     
     if "original" in run:
         LOGPATH = "logs"
@@ -224,8 +239,6 @@ def pbsExps(mapName, run=["window", "original"]):
             output=batchFolderName + mapName,
             sipp=False,
         )
-
-        windows = [1, 4, 16, 64]
         
         myBR = BatchRunnerWindowed(**expSettings)
         myBR.runBatchExps(agentRange, windows, scens, seeds)
@@ -234,6 +247,7 @@ def pbsExps(mapName, run=["window", "original"]):
 
 if __name__ == "__main__":
 
-    for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
-    # for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
-        pbsExps(map, ["original", "window"])
+    # for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
+        # pbsExps(map, ["original", "window"])
+    for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
+        pbsExps(map, ["window"])

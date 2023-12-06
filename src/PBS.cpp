@@ -405,47 +405,22 @@ bool PBS::hasConflicts(int a1, int a2) const
 
 bool PBS::hasConflictsInBucket(int a1, int a2, int bucket) const
 {
+    // printPaths();
     int min_path_length = (int) (paths[a1]->size() < paths[a2]->size() ? paths[a1]->size() : paths[a2]->size());
     int start_timestep = priority_window * bucket;
-    int last_timestep = start_timestep + priority_window;
-    
-	for (int timestep = start_timestep; (timestep < last_timestep) and (timestep < min_path_length); timestep++)
+    int last_timestep = start_timestep + priority_window;    
+	for (int timestep = start_timestep; timestep < last_timestep; timestep++)
 	{
-		int loc1 = paths[a1]->at(timestep).location;
-		int loc2 = paths[a2]->at(timestep).location;
+		int loc1 = (timestep < (int) paths[a1]->size()) ? paths[a1]->at(timestep).location : paths[a1]->back().location;
+		int loc2 = (timestep < (int) paths[a2]->size()) ? paths[a2]->at(timestep).location : paths[a2]->back().location;
 		if (loc1 == loc2 or (timestep < min_path_length - 1 and loc1 == paths[a2]->at(timestep + 1).location
                              and loc2 == paths[a1]->at(timestep + 1).location)) // vertex or edge conflict
 		{
-            // cout << "Conflict reg bucket " << bucket << " " << a1 << ", " << a2 << " " << loc1 << " t=" << timestep << endl;
+            // cout << "Conflict reg bucket=" << bucket << " " << a1 << ", " << a2 << " " << loc1 << " " << loc2 << " t=" << timestep << " min path=" << min_path_length << endl;
             return true;
 		}
-	}
-	// some parts of the bucket fall outside of min_path_length
-    if ((paths[a1]->size() != paths[a2]->size()) and last_timestep > min_path_length)
-	{
-		int a1_ = paths[a1]->size() < paths[a2]->size() ? a1 : a2; //shorter path
-		int a2_ = paths[a1]->size() < paths[a2]->size() ? a2 : a1; //longer path
-		int loc1 = paths[a1_]->back().location;
-		for (int timestep = max(start_timestep, min_path_length); timestep < (int)paths[a2_]->size() and timestep < last_timestep; timestep++)
-		{
-			int loc2 = paths[a2_]->at(timestep).location;
-			if (loc1 == loc2)
-			{
-				// cout << "Conflict bucket " << bucket << " a1=" << a1 << " length " << paths[a1]->size() << ", a2=" << a2 << " length " << paths[a2]->size() << ", at " << loc1 << " t=" << timestep << " [" << start_timestep << "," << last_timestep << "]" << endl;
-                return true; // target conflict
-			}
-		}
-	}
-    // bucket is outside of both paths, make sure goal locations are different
-    if (paths[a1]->size() <= start_timestep and paths[a2]->size() <= start_timestep) {
-        int loc1 = paths[a1]->back().location;
-        int loc2 = paths[a2]->back().location;
-        if (loc1 == loc2)
-        {
-            // cout << "Conflict outside " << bucket << " a=" << a1 << " length " << paths[a1]->size() << ", a2=" << a2 << " length " << paths[a2]->size() << " " << loc1 << endl;
-            return true; // target conflict
-        }
     }
+    
     return false; // conflict-free
 }
 
@@ -491,7 +466,7 @@ bool PBS::hasConflicts(int a1, const set<int>& agents) const
 }
 shared_ptr<Conflict> PBS::chooseConflict(const PBSNode &node) const
 {
-	if (screen == 3)
+    if (screen == 3)
 		printConflicts(node);
 	if (node.conflicts.empty())
 		return nullptr;
@@ -551,9 +526,6 @@ void PBS::printPaths() const
 {
     for (int i = 0; i < num_of_agents; i++)
 	{
-        if (i != 35 and i != 30) {
-            continue;
-        }
 		cout << "Agent " << i << " (" << search_engines[i]->my_heuristic[search_engines[i]->start_location] << " -->" <<
 			paths[i]->size() - 1 << "): ";
 		for (const auto & t : *paths[i])
@@ -833,7 +805,7 @@ bool PBS::generateRoot()
         cout << "Generate Root " << *root << endl;
 	pushNode(root);
 	dummy_start = root;
-	if (screen >= 2) // print start and goals
+	if (screen >= 0) // print start and goals
 	{
 		printPaths();
 	}
