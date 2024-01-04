@@ -2,6 +2,17 @@
 #include "PBSNode.h"
 #include "SingleAgentSolver.h"
 
+auto cmp = [](PBSNode* left, PBSNode* right) { 
+	// return (left->cost - left->depth > right->cost - right->depth);
+	// return left->depth < right->depth;
+	// return make_tuple(-left->depth, left->cost, left->conflicts.size()) > make_tuple(-right->depth, right->cost, right->conflicts.size());
+	// return make_tuple(left->cost, left->conflicts.size(), -left->depth) > make_tuple(right->cost, right->conflicts.size(), -right->depth);
+	// return make_tuple(left->conflicts.size(), left->cost, -left->depth) > make_tuple(right->conflicts.size(), right->cost, -right->depth);
+	// return make_tuple(50 * left->conflicts.size() + left->cost, -left->depth) > make_tuple(50 * right->conflicts.size() + right->cost, -right->depth); 
+	return left->cost - 50 * std::log(left->depth) > right->cost - 50 * std::log(right->depth) ; 
+	};
+using NodeQueue = std::priority_queue<PBSNode*, std::vector<PBSNode*>, decltype(cmp)>;
+
 class PBS
 {
 public:
@@ -15,7 +26,8 @@ public:
 	double runtime_detect_conflicts = 0;
 	double runtime_preprocessing = 0; // runtime of building heuristic table for the low level
 	double runtime_in_cycles = 0; // runtime being spent in cycles
-	double num_cycles_detected = 0;
+	uint64_t num_cycles_detected = 0;
+	uint64_t num_nodes_failed = 0;
 
 	uint64_t num_HL_expanded = 0;
 	uint64_t num_HL_generated = 0;
@@ -30,6 +42,7 @@ public:
 	bool solution_found = false;
 	int solution_cost = -2;
 	int priority_window;
+	bool avoidance_variant;
 
 	/////////////////////////////////////////////////////////////////////////////////////////
 	// set params
@@ -40,7 +53,7 @@ public:
 	// Runs the algorithm until the problem is solved or time is exhausted 
 	bool solve(double time_limit);
 
-	PBS(const Instance& instance, bool sipp, int screen, int window);
+	PBS(const Instance& instance, bool sipp, int screen, int window, bool avoidance);
 	void clearSearchEngines();
 	~PBS();
 
@@ -52,7 +65,8 @@ public:
 private:
 	conflict_selection conflict_seletion_rule;
 
-    stack<PBSNode*> open_list;
+    // stack<PBSNode*> open_list;
+	NodeQueue open_list{cmp};
 	list<PBSNode*> allNodes_table;
 
 
@@ -75,7 +89,8 @@ private:
 	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
 
     bool generateChild(int child_id, PBSNode* parent, int low, int high, int conflict_time);
-	bool resolveBucket(PBSNode* parent, int low, int high, int bucket, list<tuple<int,int,int>>& buckets_to_replan); 
+	bool resolveBucket(PBSNode* parent, int low, int high, int bucket, list<tuple<int,int,int>>& buckets_to_replan);
+	bool resolveBucketAvoidance(PBSNode* parent, int low, int high, int bucket); 
 
 	int bucketFromTimestep(int timestep) const;
 	void updatePriorityGraph(int low, int high, int constraint_time);
@@ -103,6 +118,7 @@ private:
     bool hasHigherPriority(int low, int high, int timestep) const; // return true if agent low is lower than agent high
 	void getHigherPriorityConstraintBuckets(int a, list<pair<int, int>>& conflict_times); // returns list higher agent->time
 	void getHigherPriorityConstraintBucketsUtil(int a2, int bucket, list<pair<int, int>>& conflict_buckets);
+	void getAvoidanceConstraintBuckets(int a, list<pair<int, int>>& conflict_times);
 	bool constraintIsViolated(int a, int agent, int bucket);
 
 	// node operators

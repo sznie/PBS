@@ -34,6 +34,7 @@ int main(int argc, char** argv)
 		("sipp", po::value<bool>()->default_value(1), "using SIPP as the low-level solver")
 		("window,w", po::value<int>()->default_value(6), "priority constraint window length")
 		("seed", po::value<int>()->default_value(0), "Random seed")
+		("avoidance", po::value<bool>()->default_value(1), "using avoidance variant")
 		;
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -54,7 +55,7 @@ int main(int argc, char** argv)
 
     srand(vm["seed"].as<int>());
 
-    PBS pbs(instance, vm["sipp"].as<bool>(), vm["screen"].as<int>(), vm["window"].as<int>());
+    PBS pbs(instance, vm["sipp"].as<bool>(), vm["screen"].as<int>(), vm["window"].as<int>(), vm["avoidance"].as<bool>());
     // run
     double runtime = 0;
     pbs.solve(vm["cutoffTime"].as<double>());

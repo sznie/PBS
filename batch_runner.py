@@ -23,9 +23,9 @@ mapsToNumAgents = {
 
 smallMapsToNumAgents = {
     "small_connector": (1, 6),
-    "small_corners": (1, 5),
+    "small_corners": (1, 4),
     "small_loopchain": (1, 7),
-    "small_string": (1, 6),
+    "small_string": (1, 5),
     "small_tree": (1, 3),
     "small_tunnel": (1, 4),
 }
@@ -47,13 +47,13 @@ class BatchRunnerWindowed:
 
     def runSingleSettingsOnMap(self, numAgents, window, aScen, aSeed):
         # Main command
-        command = "./build_debug/pbs"
+        command = "./build_release/pbs"
 
         # Batch experiment settings
         command += " --seed={}".format(aSeed)
         command += " --window={}".format(window)
         command += " --agentNum={}".format(numAgents)
-        
+
         if self.smallmap:
             command += " --map=./maps/small_maps/" + self.map + ".map"
             command += " --agents=./maps/small_scens/" + f"{self.map}-random-{aScen}.scen"
@@ -87,8 +87,8 @@ class BatchRunnerWindowed:
         return 0, 0
 
     def runBatchExps(self, agentNumbers, priorityWindows, scens, seeds):
-        for window in priorityWindows:
-            for aNum in agentNumbers:
+        for aNum in agentNumbers:
+            for window in priorityWindows:
                 numRan, numFailed = self.detectExistingStatus(aNum, window)
                 if numRan >= len(scens) / 2 and numRan - numFailed <= len(scens) / 2:
                 # if numFailed >= len(seeds)/2:  # Check if existing run all failed
@@ -106,15 +106,21 @@ class BatchRunnerWindowed:
                             self.runSingleSettingsOnMap(aNum, window, aScen, aSeed)
                             # stop if with this many agents more than half failed
                             numRan, numFailed = self.detectExistingStatus(aNum, window)
-                            if numFailed > len(scens) / 2:
+                            if numFailed > len(scens) * len(seeds) / 2:
                                 break
-                    # Check if new run failed
-                    numRan, numFailed = self.detectExistingStatus(aNum, window)
-                    print(f"failed={numFailed}/{numRan}")
-                    if numRan - numFailed <= len(scens) / 2:
-                        print(
-                            "Terminating early because all failed with {} number of agents".format(aNum))
-                        break
+                # Check if new run failed
+                numRan, numFailed = self.detectExistingStatus(aNum, window)
+                print(f"failed={numFailed}/{numRan}")
+                if numRan - numFailed <= len(scens) * len(seeds) / 2:
+                    print(
+                        "Terminating early because all failed with {} number of agents".format(aNum))
+                    break
+            numRan, numFailed = self.detectExistingStatus(aNum, 1)
+            print(f"failed={numFailed}/{numRan}")
+            if numRan - numFailed <= len(scens) * len(seeds) / 2:
+                print(
+                    "Terminating early because all failed with {} number of agents".format(aNum))
+                break
 
 
 class BatchRunnerOriginal:
@@ -197,25 +203,25 @@ class BatchRunnerOriginal:
                     break
 
 
-def pbsExps(mapName, run=["window", "original"]):
+def pbsExps(mapName, run=["window", "original"], folder="/"):
+    LOGPATH = "logs/"
     if mapName in mapsToNumAgents:
         lo, hi = mapsToNumAgents[mapName]
         lo = 100
-        agentRange = range(lo, hi+1, 100)
+        agentRange = range(lo, hi+1, 50)
         scens = list(range(1,26))
         windows = [1, 4, 16, 64]
     
     elif mapName in smallMapsToNumAgents:
         scens = list(range(1,2))
         lo, hi = smallMapsToNumAgents[mapName]
-        agentRange = range(lo, hi+1, 1)
-        windows = [1, 2, 3, 4, 5]
+        agentRange = range(hi, hi+1, 1)
+        windows = [1, 3, 5, 7, 9]
 
     seeds = list(range(0, 5))
     
     if "original" in run:
-        LOGPATH = "logs"
-        batchFolderName = os.path.join(LOGPATH, "PBS/")
+        batchFolderName = os.path.join(LOGPATH, folder, "PBS/")
 
         expSettings = dict(
             solver="SpaceTimeAStar",
@@ -229,8 +235,7 @@ def pbsExps(mapName, run=["window", "original"]):
         myBR.runBatchExps(agentRange, scens, seeds)
 
     if "window" in run:
-        LOGPATH = "logs"
-        batchFolderName = os.path.join(LOGPATH, "windowedPBS/")
+        batchFolderName = os.path.join(LOGPATH, folder)
 
         expSettings = dict(
             solver="SpaceTimeAStar",
@@ -247,7 +252,8 @@ def pbsExps(mapName, run=["window", "original"]):
 
 if __name__ == "__main__":
 
-    # for map in ["random-32-32-20", "Paris_1_256", "den312d", "empty-48-48"]:
-        # pbsExps(map, ["original", "window"])
-    for map in ["small_connector", "small_corners", "small_loopchain", "small_string", "small_tree", "small_tunnel"]:
-        pbsExps(map, ["window"])
+    for map in ["small_connector", "small_corners", "small_string", "small_tree", "small_tunnel", "small_loopchain"][1:]:
+        pbsExps(map, ["window"], 'improve_dfs/avoidance/')
+    for map in ["den312d", "empty-48-48", "random-32-32-20", "Paris_1_256", ]:
+        pbsExps(map, [ "window"], 'improve_dfs/avoidance/')
+    

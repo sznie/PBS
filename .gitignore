@@ -2,3 +2,8 @@ cmake*
 .idea
 *.csv
 .vscode/
+logs*
+build*
+maps*
+og*
+.DS_Store
