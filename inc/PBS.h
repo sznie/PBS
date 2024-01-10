@@ -7,9 +7,9 @@ auto cmp = [](PBSNode* left, PBSNode* right) {
 	// return left->depth < right->depth;
 	// return make_tuple(-left->depth, left->cost, left->conflicts.size()) > make_tuple(-right->depth, right->cost, right->conflicts.size());
 	// return make_tuple(left->cost, left->conflicts.size(), -left->depth) > make_tuple(right->cost, right->conflicts.size(), -right->depth);
-	// return make_tuple(left->conflicts.size(), left->cost, -left->depth) > make_tuple(right->conflicts.size(), right->cost, -right->depth);
+	return make_tuple(left->conflicts.size(), left->cost, -left->depth) > make_tuple(right->conflicts.size(), right->cost, -right->depth);
 	// return make_tuple(50 * left->conflicts.size() + left->cost, -left->depth) > make_tuple(50 * right->conflicts.size() + right->cost, -right->depth); 
-	return left->cost - 50 * std::log(left->depth) > right->cost - 50 * std::log(right->depth) ; 
+	// return left->cost - 50 * std::log(left->depth) > right->cost - 50 * std::log(right->depth) ; 
 	};
 using NodeQueue = std::priority_queue<PBSNode*, std::vector<PBSNode*>, decltype(cmp)>;
 
@@ -98,7 +98,7 @@ private:
     bool hasConflicts(int a1, const set<int>& agents) const;
 	bool hasConflictsInBucket(int a1, int a2, int bucket) const;
 	void fillConflicts(int a1, int a2, PBSNode &node);
-	shared_ptr<Conflict> chooseConflict(const PBSNode &node) const;
+	shared_ptr<Conflict> chooseConflict(PBSNode &node);
     int getSumOfCosts() const;
 	inline void releaseNodes();
 

@@ -547,13 +547,20 @@ bool PBS::hasConflicts(int a1, const set<int>& agents) const
     }
     return false;
 }
-shared_ptr<Conflict> PBS::chooseConflict(const PBSNode &node) const
+
+bool helperSort(const std::shared_ptr<Conflict>& c1, const std::shared_ptr<Conflict>& c2) {
+    return c1->timestep < c2->timestep;
+}
+
+shared_ptr<Conflict> PBS::chooseConflict(PBSNode &node)
 {
     if (screen == 4)
 		printConflicts(node);
 	if (node.conflicts.empty())
 		return nullptr;
-    return node.conflicts.back();
+    // return node.conflicts.back();
+    node.conflicts.sort(helperSort);
+    return node.conflicts.front();
 }
 int PBS::getSumOfCosts() const
 {

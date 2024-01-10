@@ -19,6 +19,8 @@ mapsToNumAgents = {
     "empty-32-32": (50, 511), # Verified
     "empty-48-48": (50, 1000), # Verified #(medium)
     "ht_chantry": (50, 1000), # Verified
+    "maze-32-32-2": (50, 333), # Verified
+    "room-32-32-4": (50, 341), # Verified
 }
 
 smallMapsToNumAgents = {
@@ -59,12 +61,14 @@ class BatchRunnerWindowed:
             command += " --agents=./maps/small_scens/" + f"{self.map}-random-{aScen}.scen"
         else:
             command += " --map=./maps/" + self.map + ".map"
-            command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
+            # command += " --agents=./maps/" + f"{self.map}.map-scen-random/{self.map}-random-{aScen}.scen"
+            command += " --agents=./maps/" + f"scen-random/{self.map}-random-{aScen}.scen"
         command += " --output={}".format(self.outputCSVFile)
 
         # Exp Settings
         command += " --sipp={}".format(self.sipp)
         command += " --cutoffTime={}".format(self.cutoffTime)
+        command += " --avoidance=0"
 
         print(command)
 
@@ -87,8 +91,8 @@ class BatchRunnerWindowed:
         return 0, 0
 
     def runBatchExps(self, agentNumbers, priorityWindows, scens, seeds):
-        for aNum in agentNumbers:
-            for window in priorityWindows:
+        for window in priorityWindows:
+            for aNum in agentNumbers:
                 numRan, numFailed = self.detectExistingStatus(aNum, window)
                 if numRan >= len(scens) / 2 and numRan - numFailed <= len(scens) / 2:
                 # if numFailed >= len(seeds)/2:  # Check if existing run all failed
@@ -98,16 +102,17 @@ class BatchRunnerWindowed:
                 elif numRan >= len(scens):  # Check if ran existing run
                     print("Skipping {} completely as already run!".format(aNum))
                     continue
-                else:
-                    ### Run across scens and seeds
-                    for aScen in scens:
-                        for aSeed in seeds:
-                            print(f"    Windowed: agents={aNum}, window={window}, seed={aSeed} aScen={aScen}, map={self.map}")
-                            self.runSingleSettingsOnMap(aNum, window, aScen, aSeed)
-                            # stop if with this many agents more than half failed
-                            numRan, numFailed = self.detectExistingStatus(aNum, window)
-                            if numFailed > len(scens) * len(seeds) / 2:
-                                break
+
+                ### Run across scens and seeds
+                for aScen in scens:
+                    for aSeed in seeds:
+                        print(f"    Windowed: agents={aNum}, window={window}, seed={aSeed} aScen={aScen}, map={self.map}")
+                        self.runSingleSettingsOnMap(aNum, window, aScen, aSeed)
+                        # # stop if with this many agents more than half failed
+                        # numRan, numFailed = self.detectExistingStatus(aNum, window)
+                        # if numFailed > len(scens) * len(seeds) / 2:
+                        #     break
+
                 # Check if new run failed
                 numRan, numFailed = self.detectExistingStatus(aNum, window)
                 print(f"failed={numFailed}/{numRan}")
@@ -115,12 +120,12 @@ class BatchRunnerWindowed:
                     print(
                         "Terminating early because all failed with {} number of agents".format(aNum))
                     break
-            numRan, numFailed = self.detectExistingStatus(aNum, 1)
-            print(f"failed={numFailed}/{numRan}")
-            if numRan - numFailed <= len(scens) * len(seeds) / 2:
-                print(
-                    "Terminating early because all failed with {} number of agents".format(aNum))
-                break
+            # numRan, numFailed = self.detectExistingStatus(aNum, 1)
+            # print(f"failed={numFailed}/{numRan}")
+            # if numRan - numFailed <= len(scens) * len(seeds) / 2:
+            #     print(
+            #         "Terminating early because all failed with {} number of agents".format(aNum))
+            #     break
 
 
 class BatchRunnerOriginal:
@@ -207,7 +212,7 @@ def pbsExps(mapName, run=["window", "original"], folder="/"):
     LOGPATH = "logs/"
     if mapName in mapsToNumAgents:
         lo, hi = mapsToNumAgents[mapName]
-        lo = 100
+        lo = 50
         agentRange = range(lo, hi+1, 50)
         scens = list(range(1,26))
         windows = [1, 4, 16, 64]
@@ -218,7 +223,8 @@ def pbsExps(mapName, run=["window", "original"], folder="/"):
         agentRange = range(hi, hi+1, 1)
         windows = [1, 3, 5, 7, 9]
 
-    seeds = list(range(0, 5))
+    # seeds = list(range(0, 5))
+    seeds = [1]
     
     if "original" in run:
         batchFolderName = os.path.join(LOGPATH, folder, "PBS/")
@@ -237,6 +243,9 @@ def pbsExps(mapName, run=["window", "original"], folder="/"):
     if "window" in run:
         batchFolderName = os.path.join(LOGPATH, folder)
 
+        if not os.path.exists(batchFolderName):
+          os.makedirs(batchFolderName)
+
         expSettings = dict(
             solver="SpaceTimeAStar",
             cutoffTime=60,
@@ -252,8 +261,11 @@ def pbsExps(mapName, run=["window", "original"], folder="/"):
 
 if __name__ == "__main__":
 
-    for map in ["small_connector", "small_corners", "small_string", "small_tree", "small_tunnel", "small_loopchain"][1:]:
-        pbsExps(map, ["window"], 'improve_dfs/avoidance/')
-    for map in ["den312d", "empty-48-48", "random-32-32-20", "Paris_1_256", ]:
-        pbsExps(map, [ "window"], 'improve_dfs/avoidance/')
+    # for map in ["small_connector", "small_corners", "small_string", "small_tree", "small_tunnel", "small_loopchain"][1:]:
+    #     pbsExps(map, ["window"], 'improve_dfs/avoidance/')
+    EECBS_MAPS = ["den312d", "empty-48-48", "random-32-32-20", "Paris_1_256"]
+    PBS_MAPS = ["maze-32-32-2", "room-32-32-4"]
+    # for map in ["den312d", "empty-48-48", "random-32-32-20", "Paris_1_256", ]:
+    for map in PBS_MAPS:
+        pbsExps(map, [ "window"], 'improve_dfs/regWindow/')
     
